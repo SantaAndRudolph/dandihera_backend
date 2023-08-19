@@ -5,8 +5,9 @@ from functools import wraps
 import asyncio
 from firebase_admin import credentials, storage, initialize_app, messaging
 from firebase import firebase
+import requests
 
-cred = credentials.Certificate("/Users/rex/Developer/backend/flask_app/dandihera-key.json")
+cred = credentials.Certificate("/dandihera-key.json")
 initialize_app(cred, {'storageBucket' : 'dandihera-f6f88.appspot.com'})
 
 app = Flask(__name__)
@@ -25,8 +26,8 @@ def async_action(f):
 async def detect():
     import os, shutil, numpy as np
 
-    DATA_PATH = '/Users/rex/Developer/backend/flask_app/'
-    SAVE_PATH = '/Users/rex/Developer/backend/flask_app/mobility/uploaded_file/' # 저장 경로
+    DATA_PATH = '/'
+    SAVE_PATH = '/mobility/uploaded_file/' # 저장 경로
 
     # Yolo 모델 불러오기
     from ultralytics import YOLO
@@ -107,31 +108,28 @@ async def detect():
 def getInfo():
       return firebase.get('/VIO_INFO', None)
 
+@app.route('/notify', methods=['POST'])
+def send_notification():
+    data = request.json
+    user_token = data['userToken']
+    # Firebase Cloud Messaging URL
+    FCM_URL = "https://fcm.googleapis.com/fcm/send"
 
-@app.route('/some-api-endpoint', methods=['POST'])
-def handle_request():
+    headers = {
+        'Authorization': 'key=AAAAzvYle_I:APA91bFQtc1hA_IDgQvEuKg-hiEEnT2RfivvPjPRdvQGhFReoOyRLwy8Bdxavd-TG9ThjQ2CofubWXcnuNoR6nn9vSOWE5nxMo5K6Su-h4YIwgCq1MB4Ecd-KI9lAgeWBr0fWuteYbQ5',
+        'Content-Type': 'application/json'
+    }
 
-    should_send_notification = True  # 알림을 보낼 조건을 판단
+    payload = {
+        "to": user_token,
+        "notification": {
+            "title": "교통법규 위반 발생!",
+            "body": "단디하라 앱에서 위반 사항을 손쉽게 신고하세요"
+        }
+    }
 
-    # 푸시 알림을 보내야 하는 경우 판단
-    if should_send_notification:
-        # 알림 설정
-        notification = messaging.Notification(
-            title='교통법규 위반 발생!',
-            body='단디하라 앱에서 위반 사항을 손쉽게 신고하세요'
-        )
-
-        # 등록된 토큰을 대상으로 알림 전송
-        message = messaging.Message(
-            notification=notification,
-            token='BFjjdB-SCn5zRdI7ELgdA8_H7938hoEgecljZEFQtu01g8sgu1LiNn-basnMeQr-LsT4hHBLM3cGHC1-_ge6BE4'
-        )
-
-        # 알림 전송
-        response = messaging.send(message)
-
-    # 응답 전송
-    return jsonify({"message": response})
+    response = requests.post(FCM_URL, json=payload, headers=headers)
+    return jsonify(response.json()), 200
 
 if __name__ == '__main__':
     app.run(host="0.0.0.0",debug=True)
